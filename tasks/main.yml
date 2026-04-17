@@ -75,199 +75,202 @@
     - nomad_install_remotely | bool
     - not nomad_install_from_repo | bool
 
-- name: Disable SELinux (RHEL)
-  ansible.builtin.include_tasks:
-    file: selinux.yml
-  when: ansible_os_family == "RedHat"
+- name: Configure and start Nomad
+  when: not nomad_install_only | bool
+  block:
+    - name: Disable SELinux (RHEL)
+      ansible.builtin.include_tasks:
+        file: selinux.yml
+      when: ansible_os_family == "RedHat"
 
-- name: Create directories
-  ansible.builtin.file:
-    dest: "{{ item }}"
-    state: directory
-    owner: "{{ nomad_user }}"
-    group: "{{ nomad_group }}"
-    mode: "0755"
-  with_items:
-    - "{{ nomad_data_dir }}"
-    - "{{ nomad_plugin_dir }}"
-  when: not nomad_install_from_repo | bool
+    - name: Create directories
+      ansible.builtin.file:
+        dest: "{{ item }}"
+        state: directory
+        owner: "{{ nomad_user }}"
+        group: "{{ nomad_group }}"
+        mode: "0755"
+      with_items:
+        - "{{ nomad_data_dir }}"
+        - "{{ nomad_plugin_dir }}"
+      when: not nomad_install_from_repo | bool
 
-- name: Install Podman plugin
-  ansible.builtin.include_tasks:
-    file: install_podman.yml
-  when: nomad_podman_enable | bool
+    - name: Install Podman plugin
+      ansible.builtin.include_tasks:
+        file: install_podman.yml
+      when: nomad_podman_enable | bool
 
-- name: Install CNI plugin
-  ansible.builtin.include_tasks:
-    file: cni.yml
-  when: nomad_cni_enable | bool
+    - name: Install CNI plugin
+      ansible.builtin.include_tasks:
+        file: cni.yml
+      when: nomad_cni_enable | bool
 
-- name: Create config directory
-  ansible.builtin.file:
-    dest: "{{ nomad_config_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
+    - name: Create config directory
+      ansible.builtin.file:
+        dest: "{{ nomad_config_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
 
-- name: Base configuration
-  ansible.builtin.template:
-    src: base.hcl.j2
-    dest: "{{ nomad_config_dir }}/base.hcl"
-    owner: root
-    group: root
-    mode: "0644"
-  notify:
-    - Restart nomad
+    - name: Base configuration
+      ansible.builtin.template:
+        src: base.hcl.j2
+        dest: "{{ nomad_config_dir }}/base.hcl"
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Restart nomad
 
-- name: Get Gossip Key
-  ansible.builtin.include_tasks:
-    file: get_gossip_key.yml
-  when:
-    - _nomad_node_server | bool
-    - nomad_encrypt_enable | bool
-    - nomad_encrypt is not defined
+    - name: Get Gossip Key
+      ansible.builtin.include_tasks:
+        file: get_gossip_key.yml
+      when:
+        - _nomad_node_server | bool
+        - nomad_encrypt_enable | bool
+        - nomad_encrypt is not defined
 
-- name: Create TLS configuration
-  ansible.builtin.include_tasks:
-    file: tls.yml
-  when: nomad_tls_enable | bool
+    - name: Create TLS configuration
+      ansible.builtin.include_tasks:
+        file: tls.yml
+      when: nomad_tls_enable | bool
 
-- name: Server configuration
-  ansible.builtin.template:
-    src: server.hcl.j2
-    dest: "{{ nomad_config_dir }}/server.hcl"
-    owner: root
-    group: root
-    mode: "0644"
-  when:
-    - _nomad_node_server | bool
-  notify:
-    - Restart nomad
+    - name: Server configuration
+      ansible.builtin.template:
+        src: server.hcl.j2
+        dest: "{{ nomad_config_dir }}/server.hcl"
+        owner: root
+        group: root
+        mode: "0644"
+      when:
+        - _nomad_node_server | bool
+      notify:
+        - Restart nomad
 
-- name: Remove Server configuration
-  ansible.builtin.file:
-    dest: "{{ nomad_config_dir }}/server.hcl"
-    state: absent
-  when:
-    - nomad_allow_purge_config | bool
-    - not _nomad_node_server | bool
-  notify:
-    - Restart nomad
+    - name: Remove Server configuration
+      ansible.builtin.file:
+        dest: "{{ nomad_config_dir }}/server.hcl"
+        state: absent
+      when:
+        - nomad_allow_purge_config | bool
+        - not _nomad_node_server | bool
+      notify:
+        - Restart nomad
 
-- name: Client configuration
-  ansible.builtin.template:
-    src: client.hcl.j2
-    dest: "{{ nomad_config_dir }}/client.hcl"
-    owner: root
-    group: root
-    mode: "0644"
-  when:
-    - _nomad_node_client | bool
-  notify:
-    - Restart nomad
+    - name: Client configuration
+      ansible.builtin.template:
+        src: client.hcl.j2
+        dest: "{{ nomad_config_dir }}/client.hcl"
+        owner: root
+        group: root
+        mode: "0644"
+      when:
+        - _nomad_node_client | bool
+      notify:
+        - Restart nomad
 
-- name: Remove Client configuration
-  ansible.builtin.file:
-    dest: "{{ nomad_config_dir }}/client.hcl"
-    state: absent
-  when:
-    - nomad_allow_purge_config | bool
-    - not _nomad_node_client | bool
-  notify:
-    - Restart nomad
+    - name: Remove Client configuration
+      ansible.builtin.file:
+        dest: "{{ nomad_config_dir }}/client.hcl"
+        state: absent
+      when:
+        - nomad_allow_purge_config | bool
+        - not _nomad_node_client | bool
+      notify:
+        - Restart nomad
 
-- name: Custom configuration
-  ansible.builtin.template:
-    src: custom.json.j2
-    dest: "{{ nomad_config_dir }}/custom.json"
-    owner: root
-    group: root
-    mode: "0644"
-  when:
-    - nomad_config_custom is defined
-  notify:
-    - Restart nomad
+    - name: Custom configuration
+      ansible.builtin.template:
+        src: custom.json.j2
+        dest: "{{ nomad_config_dir }}/custom.json"
+        owner: root
+        group: root
+        mode: "0644"
+      when:
+        - nomad_config_custom is defined
+      notify:
+        - Restart nomad
 
-- name: Remove custome configuration
-  ansible.builtin.file:
-    dest: "{{ nomad_config_dir }}/custom.json"
-    state: absent
-  when:
-    - nomad_allow_purge_config | bool
-    - nomad_config_custom is not defined
-  notify:
-    - Restart nomad
+    - name: Remove custome configuration
+      ansible.builtin.file:
+        dest: "{{ nomad_config_dir }}/custom.json"
+        state: absent
+      when:
+        - nomad_allow_purge_config | bool
+        - nomad_config_custom is not defined
+      notify:
+        - Restart nomad
 
-- name: Host volume
-  ansible.builtin.include_tasks:
-    file: host_volume.yml
+    - name: Host volume
+      ansible.builtin.include_tasks:
+        file: host_volume.yml
 
-- name: SYSV init script
-  ansible.builtin.template:
-    src: nomad_sysvinit.j2
-    dest: /etc/init.d/nomad
-    owner: root
-    group: root
-    mode: "0755"
-  when:
-    - not ansible_service_mgr == "systemd"
-    - not ansible_os_family == "Debian"
-    - not nomad_install_from_repo | bool
+    - name: SYSV init script
+      ansible.builtin.template:
+        src: nomad_sysvinit.j2
+        dest: /etc/init.d/nomad
+        owner: root
+        group: root
+        mode: "0755"
+      when:
+        - not ansible_service_mgr == "systemd"
+        - not ansible_os_family == "Debian"
+        - not nomad_install_from_repo | bool
 
-- name: Debian init script
-  ansible.builtin.template:
-    src: nomad_debian.init.j2
-    dest: /etc/init.d/nomad
-    owner: root
-    group: root
-    mode: "0755"
-  when:
-    - not ansible_service_mgr == "systemd"
-    - ansible_os_family == "Debian"
-    - not nomad_install_from_repo | bool
+    - name: Debian init script
+      ansible.builtin.template:
+        src: nomad_debian.init.j2
+        dest: /etc/init.d/nomad
+        owner: root
+        group: root
+        mode: "0755"
+      when:
+        - not ansible_service_mgr == "systemd"
+        - ansible_os_family == "Debian"
+        - not nomad_install_from_repo | bool
 
-- name: Extract systemd version
-  ansible.builtin.shell:
-    cmd: set -o pipefail && systemctl --version systemd | head -n 1 | cut -d ' ' -f2
-  args:
-    executable: /bin/bash
-  changed_when: false
-  check_mode: false
-  register: systemd_version
-  when:
-    - ansible_service_mgr == "systemd"
-    - not ansible_os_family == "FreeBSD"
-    - not ansible_os_family == "Solaris"
-  tags: skip_ansible_lint
+    - name: Extract systemd version
+      ansible.builtin.shell:
+        cmd: set -o pipefail && systemctl --version systemd | head -n 1 | cut -d ' ' -f2
+      args:
+        executable: /bin/bash
+      changed_when: false
+      check_mode: false
+      register: systemd_version
+      when:
+        - ansible_service_mgr == "systemd"
+        - not ansible_os_family == "FreeBSD"
+        - not ansible_os_family == "Solaris"
+      tags: skip_ansible_lint
 
-- name: Create systemd unit
-  ansible.builtin.template:
-    src: "{{ nomad_systemd_template }}"
-    dest: "{{ nomad_systemd_unit_path }}/nomad.service"
-    owner: root
-    group: root
-    mode: "0644"
-  register: nomad_systemd_unit
-  notify: Restart nomad
-  when:
-    - ansible_service_mgr == "systemd"
-    - not nomad_install_from_repo | bool
+    - name: Create systemd unit
+      ansible.builtin.template:
+        src: "{{ nomad_systemd_template }}"
+        dest: "{{ nomad_systemd_unit_path }}/nomad.service"
+        owner: root
+        group: root
+        mode: "0644"
+      register: nomad_systemd_unit
+      notify: Restart nomad
+      when:
+        - ansible_service_mgr == "systemd"
+        - not nomad_install_from_repo | bool
 
-- name: Reload systemd daemon # noqa no-handler
-  ansible.builtin.systemd_service:
-    daemon_reload: true
-  when: nomad_systemd_unit is changed
+    - name: Reload systemd daemon # noqa no-handler
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      when: nomad_systemd_unit is changed
 
-- name: Enable nomad at startup (systemd)
-  ansible.builtin.systemd_service:
-    name: nomad
-    enabled: true
-  when:
-    - ansible_service_mgr == "systemd"
+    - name: Enable nomad at startup (systemd)
+      ansible.builtin.systemd_service:
+        name: nomad
+        enabled: true
+      when:
+        - ansible_service_mgr == "systemd"
 
-- name: Start Nomad
-  ansible.builtin.service:
-    name: nomad
-    state: started
-    enabled: true
+    - name: Start Nomad
+      ansible.builtin.service:
+        name: nomad
+        state: started
+        enabled: true

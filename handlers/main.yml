@@ -5,7 +5,11 @@
   ansible.builtin.service:
     name: nomad
     state: restarted
+  when:
+    - not nomad_install_only | bool
 
 - name: Reload systemd daemon
   ansible.builtin.systemd:
     daemon_reload: true
+  when:
+    - not nomad_install_only | bool
