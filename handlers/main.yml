@@ -9,8 +9,3 @@
 - name: Reload systemd daemon
   ansible.builtin.systemd:
     daemon_reload: true
-
-- name: Enable nomad at startup (systemd)
-  ansible.builtin.systemd:
-    name: nomad
-    enabled: true
