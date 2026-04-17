@@ -34,9 +34,15 @@
     file: docker.yml
   when: nomad_docker_enable | bool
 
-- name: Install OS packages
+- name: Install Nomad - locally
   ansible.builtin.include_tasks:
     file: install.yml
+  when: not nomad_install_remotely | bool
+
+- name: Install Nomad - remotely
+  ansible.builtin.include_tasks:
+    file: install_remote.yml
+  when: nomad_install_remotely | bool
 
 - name: Disable SELinux (RHEL)
   ansible.builtin.include_tasks:
