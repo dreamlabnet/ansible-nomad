@@ -248,16 +248,26 @@
     owner: root
     group: root
     mode: "0644"
-  notify:
-    - Reload systemd daemon
-    - Enable nomad at startup (systemd)
+  register: nomad_systemd_unit
+  notify: Restart nomad
   when:
     - ansible_service_mgr == "systemd"
     - not nomad_install_from_repo | bool
 
+- name: Reload systemd daemon # noqa no-handler
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: nomad_systemd_unit is changed
+
+- name: Enable nomad at startup (systemd)
+  ansible.builtin.systemd_service:
+    name: nomad
+    enabled: true
+  when:
+    - ansible_service_mgr == "systemd"
+
 - name: Start Nomad
   ansible.builtin.service:
     name: nomad
-    enabled: true
     state: started
-  when: not ansible_service_mgr == "systemd"
+    enabled: true
