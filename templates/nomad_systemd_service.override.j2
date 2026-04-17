@@ -1,0 +1,9 @@
+# WARNING!!! Ansible managed.
+
+[Unit]
+ConditionFileNotEmpty=
+ConditionFileNotEmpty={{ nomad_config_dir }}/base.hcl
+
+[Service]
+ExecStart=
+ExecStart=/usr/bin/nomad agent -config={{ nomad_config_dir }}

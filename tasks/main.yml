@@ -28,21 +28,31 @@
 - name: Include user and group settings
   ansible.builtin.include_tasks:
     file: user_group.yml
+  when: not nomad_install_from_repo | bool
 
 - name: Include Docker tasks
   ansible.builtin.include_tasks:
     file: docker.yml
   when: nomad_docker_enable | bool
 
+- name: Install Nomad - from the repository
+  ansible.builtin.include_tasks:
+    file: install_linux_repo.yml
+  when: nomad_install_from_repo | bool
+
 - name: Install Nomad - locally
   ansible.builtin.include_tasks:
     file: install.yml
-  when: not nomad_install_remotely | bool
+  when:
+    - not nomad_install_remotely | bool
+    - not nomad_install_from_repo | bool
 
 - name: Install Nomad - remotely
   ansible.builtin.include_tasks:
     file: install_remote.yml
-  when: nomad_install_remotely | bool
+  when:
+    - nomad_install_remotely | bool
+    - not nomad_install_from_repo | bool
 
 - name: Disable SELinux (RHEL)
   ansible.builtin.include_tasks:
@@ -59,6 +69,7 @@
   with_items:
     - "{{ nomad_data_dir }}"
     - "{{ nomad_plugin_dir }}"
+  when: not nomad_install_from_repo | bool
 
 - name: Install Podman plugin
   ansible.builtin.include_tasks:
@@ -178,7 +189,10 @@
     owner: root
     group: root
     mode: "0755"
-  when: not ansible_service_mgr == "systemd" and not ansible_os_family == "Debian"
+  when:
+    - not ansible_service_mgr == "systemd"
+    - not ansible_os_family == "Debian"
+    - not nomad_install_from_repo | bool
 
 - name: Debian init script
   ansible.builtin.template:
@@ -187,7 +201,10 @@
     owner: root
     group: root
     mode: "0755"
-  when: not ansible_service_mgr == "systemd" and ansible_os_family == "Debian"
+  when:
+    - not ansible_service_mgr == "systemd"
+    - ansible_os_family == "Debian"
+    - not nomad_install_from_repo | bool
 
 - name: Extract systemd version
   ansible.builtin.shell:
@@ -213,7 +230,9 @@
   notify:
     - Reload systemd daemon
     - Enable nomad at startup (systemd)
-  when: ansible_service_mgr == "systemd"
+  when:
+    - ansible_service_mgr == "systemd"
+    - not nomad_install_from_repo | bool
 
 - name: Start Nomad
   ansible.builtin.service:
