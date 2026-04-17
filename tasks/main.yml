@@ -35,6 +35,25 @@
     file: docker.yml
   when: nomad_docker_enable | bool
 
+- name: Check for existing Nomad binary
+  ansible.builtin.stat:
+    path: "{{ nomad_bin_dir }}/nomad"
+  register: nomad_binary_installed
+  when: not nomad_force_install
+
+- name: Get current Nomad version
+  ansible.builtin.command: "{{ nomad_bin_dir }}/nomad --version"
+  check_mode: false
+  changed_when: false
+  when:
+    - not nomad_force_install
+    - nomad_binary_installed.stat.exists
+  register: nomad_installed_version
+
+- name: Calculate whether to install Nomad binary
+  ansible.builtin.set_fact:
+    nomad_install_binary: "{{ nomad_force_install or not nomad_binary_installed.stat.exists or nomad_installed_version.stdout_lines[0] != _nomad_expected_version_string }}"
+
 - name: Install Nomad - from the repository
   ansible.builtin.include_tasks:
     file: install_linux_repo.yml
@@ -44,6 +63,7 @@
   ansible.builtin.include_tasks:
     file: install.yml
   when:
+    - nomad_install_binary | bool
     - not nomad_install_remotely | bool
     - not nomad_install_from_repo | bool
 
@@ -51,6 +71,7 @@
   ansible.builtin.include_tasks:
     file: install_remote.yml
   when:
+    - nomad_install_binary | bool
     - nomad_install_remotely | bool
     - not nomad_install_from_repo | bool
 
