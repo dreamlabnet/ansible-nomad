@@ -61,6 +61,7 @@ nomad_podman_checksum_file_url: "{{ nomad_podman_url }}/nomad-driver-podman_{{ n
 nomad_force_install: false
 nomad_install_remotely: false
 nomad_install_from_repo: false
+nomad_install_only: false
 
 ### Paths
 nomad_bin_dir: /usr/local/bin
