@@ -274,3 +274,10 @@
         name: nomad
         state: started
         enabled: true
+
+    - name: Bootstrap ACLs
+      ansible.builtin.include_tasks:
+        file: acl_bootstrap.yml
+      when:
+        - nomad_acl_enabled | bool
+        - nomad_acl_bootstrap | bool

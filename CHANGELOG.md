@@ -1,5 +1,6 @@
 ## NEXT
 
+- Add opt-in ACL bootstrap (`nomad_acl_bootstrap`) writing the bootstrap token to a root-only file on the first server
 - Add host_volume for nomad client (thanks @ducminhle)
 - Update CONTRIBUTORS
 - Update documentation

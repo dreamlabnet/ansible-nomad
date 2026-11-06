@@ -1,0 +1,52 @@
+---
+- name: Verify common state
+  ansible.builtin.import_playbook: ../_shared/verify.yml
+
+- name: Verify ACL bootstrap
+  hosts: all
+  vars:
+    token_file: /etc/nomad.d/acl-bootstrap.token
+  tasks:
+    - name: Stat ACL bootstrap token file
+      ansible.builtin.stat:
+        path: "{{ token_file }}"
+      register: result_token_file
+
+    - name: Validate ACL bootstrap token file
+      ansible.builtin.assert:
+        that:
+          - result_token_file.stat.exists
+          - result_token_file.stat.pw_name == 'root'
+          - result_token_file.stat.gr_name == 'root'
+          - result_token_file.stat.mode == '0600'
+          - result_token_file.stat.size > 0
+
+    - name: Stat temporary ACL bootstrap token file
+      ansible.builtin.stat:
+        path: "{{ token_file }}.tmp"
+      register: result_token_tmp
+
+    - name: Validate that temporary ACL bootstrap token file is gone
+      ansible.builtin.assert:
+        that:
+          - not result_token_tmp.stat.exists
+
+    - name: Read ACL bootstrap token
+      ansible.builtin.slurp:
+        src: "{{ token_file }}"
+      register: result_token
+      no_log: true
+
+    - name: Look up ACL bootstrap token
+      ansible.builtin.command:
+        cmd: /usr/local/bin/nomad acl token self -address=http://{{ ansible_default_ipv4.address }}:4646
+      environment:
+        NOMAD_TOKEN: "{{ result_token.content | b64decode | trim }}"
+      changed_when: false
+      register: result_token_self
+      no_log: true
+
+    - name: Validate that ACL bootstrap token is a management token
+      ansible.builtin.assert:
+        that:
+          - result_token_self.stdout is search('^Type\\s+= management$', multiline=True)

@@ -1,0 +1,98 @@
+---
+# File: acl_bootstrap.yml - Bootstrap the Nomad ACL system once
+
+- name: Flush handlers before ACL bootstrap
+  ansible.builtin.meta: flush_handlers
+
+- name: Bootstrap ACLs on the first server
+  when:
+    - nomad_servers | length > 0
+    - inventory_hostname == nomad_servers[0]
+  vars:
+    _nomad_acl_bootstrap_ca_cert: "{{ nomad_tls_dir }}/{{ nomad_ca_file | basename }}"
+    _nomad_acl_bootstrap_client_cert: "{{ nomad_tls_dir }}/{{ nomad_cert_file | basename }}"
+    _nomad_acl_bootstrap_client_key: "{{ nomad_tls_dir }}/{{ nomad_key_file | basename }}"
+    _nomad_acl_bootstrap_use_client_cert: "{{ nomad_tls_enable | bool and nomad_verify_https_client | bool }}"
+    _nomad_acl_bootstrap_tmp_file: "{{ nomad_acl_bootstrap_token_file }}.tmp"
+  block:
+    - name: Check for ACL bootstrap token file
+      ansible.builtin.stat:
+        path: "{{ nomad_acl_bootstrap_token_file }}"
+      register: _nomad_acl_bootstrap_token_stat
+
+    - name: Bootstrap ACL system
+      when: not _nomad_acl_bootstrap_token_stat.stat.exists
+      block:
+        - name: Check for ACL bootstrap token directory
+          ansible.builtin.stat:
+            path: "{{ nomad_acl_bootstrap_token_file | dirname }}"
+          register: _nomad_acl_bootstrap_dir_stat
+
+        - name: Create ACL bootstrap token directory
+          ansible.builtin.file:
+            path: "{{ nomad_acl_bootstrap_token_file | dirname }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0700"
+          when: not _nomad_acl_bootstrap_dir_stat.stat.exists
+
+        - name: Wait for Nomad cluster leader
+          ansible.builtin.uri:
+            url: "{{ nomad_acl_bootstrap_address }}/v1/status/leader"
+            return_content: true
+            ca_path: "{{ _nomad_acl_bootstrap_ca_cert if nomad_tls_enable | bool else omit }}"
+            client_cert: "{{ _nomad_acl_bootstrap_client_cert if _nomad_acl_bootstrap_use_client_cert | bool else omit }}"
+            client_key: "{{ _nomad_acl_bootstrap_client_key if _nomad_acl_bootstrap_use_client_cert | bool else omit }}"
+          register: _nomad_acl_bootstrap_leader
+          until:
+            - _nomad_acl_bootstrap_leader.status | default(-1) == 200
+            - (_nomad_acl_bootstrap_leader.content | default('') | trim) not in ['', '""']
+          retries: 30
+          delay: 2
+          check_mode: false
+
+        # The Go template is kept raw so Jinja leaves it for the nomad CLI.
+        - name: Run nomad acl bootstrap
+          ansible.builtin.shell:
+            cmd: >-
+              umask 077 &&
+              {{ nomad_bin_dir }}/nomad acl bootstrap
+              -address={{ nomad_acl_bootstrap_address | quote }}
+              {% if nomad_tls_enable | bool %}
+              -ca-cert={{ _nomad_acl_bootstrap_ca_cert | quote }}
+              {% endif %}
+              {% if _nomad_acl_bootstrap_use_client_cert | bool %}
+              -client-cert={{ _nomad_acl_bootstrap_client_cert | quote }}
+              -client-key={{ _nomad_acl_bootstrap_client_key | quote }}
+              {% endif %}
+              -t {% raw %}'{{ .SecretID }}'{% endraw %}
+              > {{ _nomad_acl_bootstrap_tmp_file | quote }} &&
+              mv {{ _nomad_acl_bootstrap_tmp_file | quote }} {{ nomad_acl_bootstrap_token_file | quote }}
+            creates: "{{ nomad_acl_bootstrap_token_file }}"
+          register: _nomad_acl_bootstrap_result
+          failed_when: false
+          no_log: true
+
+        - name: Remove partial ACL bootstrap token file
+          ansible.builtin.file:
+            path: "{{ _nomad_acl_bootstrap_tmp_file }}"
+            state: absent
+          when: _nomad_acl_bootstrap_result.rc | default(0) != 0
+
+        - name: Fail when ACL system was already bootstrapped
+          ansible.builtin.fail:
+            msg: >-
+              The Nomad ACL system is already bootstrapped, but {{ nomad_acl_bootstrap_token_file }}
+              does not exist on {{ inventory_hostname }}. The role never resets the bootstrap.
+              To bootstrap again, write the reset index
+              ({{ (_nomad_acl_bootstrap_result.stderr | regex_search('reset index: ([0-9]+)', '\1') or ['<reset index>']) | first }})
+              to {{ nomad_data_dir }}/server/acl-bootstrap-reset on the current leader and re-run the role.
+          when:
+            - _nomad_acl_bootstrap_result.rc | default(0) != 0
+            - "'ACL bootstrap already done' in _nomad_acl_bootstrap_result.stderr | default('')"
+
+        - name: Fail when ACL bootstrap failed
+          ansible.builtin.fail:
+            msg: "nomad acl bootstrap failed: {{ _nomad_acl_bootstrap_result.stderr | default('') }}"
+          when: _nomad_acl_bootstrap_result.rc | default(0) != 0

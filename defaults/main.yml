@@ -169,6 +169,12 @@ nomad_acl_enabled: "{{ lookup('env', 'NOMAD_ACL_ENABLED') | default('no', true) 
 nomad_acl_token_ttl: 30s
 nomad_acl_policy_ttl: 30s
 nomad_acl_replication_token: ""
+nomad_acl_bootstrap: false
+nomad_acl_bootstrap_token_file: "{{ nomad_config_dir }}/acl-bootstrap.token"
+nomad_acl_bootstrap_address: >-
+  {{ 'https' if nomad_tls_enable | bool else 'http' }}://{{
+  ('127.0.0.1' if nomad_bind_address in ['0.0.0.0', '::'] else nomad_bind_address) | ansible.utils.ipwrap
+  }}:{{ nomad_ports.http }}
 
 ### Vault
 nomad_vault_enabled: "{{ lookup('env', 'NOMAD_VAULT_ENABLED') | default('no', true) }}"
