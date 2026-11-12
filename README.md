@@ -557,6 +557,23 @@ in many Ansible versions, so this feature might not always work.
 - Enable ACLs
 - Default value: **no**
 
+### `nomad_acl_bootstrap`
+
+- Bootstrap the ACL system once, on the first server (`nomad_servers | first`), with `nomad acl bootstrap`. Needs `nomad_acl_enabled`.
+- The bootstrap token SecretID is written to `nomad_acl_bootstrap_token_file` on that server. The bootstrap is skipped when the file exists.
+- If the cluster is already bootstrapped and the file does not exist, the role fails and names the reset procedure (`<nomad_data_dir>/server/acl-bootstrap-reset`). It never resets the bootstrap itself.
+- Default value: **false**
+
+### `nomad_acl_bootstrap_token_file`
+
+- File the bootstrap token SecretID is written to (owner root, mode `0600`). If the role creates the parent directory, it is owned by root with mode `0700`.
+- Default value: `{{ nomad_config_dir }}/acl-bootstrap.token`
+
+### `nomad_acl_bootstrap_address`
+
+- Nomad HTTP API address used for the bootstrap. Uses `https` when `nomad_tls_enable` is on, with `nomad_ca_file` and, when `nomad_verify_https_client` is on, the node's `nomad_cert_file` and `nomad_key_file`.
+- Default value: `http(s)://<nomad_bind_address>:<nomad_ports.http>`, or `127.0.0.1` instead of the bind address when `nomad_bind_address` is `0.0.0.0` or `::`
+
 ### `nomad_acl_token_ttl`
 
 - TTL for tokens

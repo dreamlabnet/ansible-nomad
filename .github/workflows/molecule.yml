@@ -12,6 +12,7 @@ jobs:
       max-parallel: 4
       matrix:
         scenario:
+          - default
           - almalinux-8
           - almalinux-9
           - centos-7
